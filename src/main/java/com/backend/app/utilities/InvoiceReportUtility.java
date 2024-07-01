@@ -7,11 +7,11 @@ import lombok.Data;
 import net.sf.jasperreports.engine.*;
 import net.sf.jasperreports.engine.data.JRBeanArrayDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
+import org.springframework.util.ResourceUtils;
 
-import java.io.*;
+import java.io.File;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -22,21 +22,17 @@ public class InvoiceReportUtility {
     @Autowired
     private OrderDishItemRepository orderDishItemRepository;
 
-    @Autowired
-    private ResourceLoader resourceLoader;
-
     public JasperPrint generateReport(
             UserEntity user,
             OrderDishEntity orderDish,
             PaymentEntity payment
-    ) throws IOException, JRException {
+    ) throws JRException {
 
 
-        Resource resource = resourceLoader.getResource("classpath:reports/invoice.jrxml");
-        final JasperReport jasperReport = JasperCompileManager.compileReport(resource.getInputStream());
+        InputStream reportStream = this.getClass().getResourceAsStream("/reports/UserInvoiceReport.jrxml");
+        final JasperReport jasperReport = JasperCompileManager.compileReport(reportStream);
 
-        Resource logoResource = resourceLoader.getResource("classpath:reports/images/logoCompany.png");
-        InputStream logoCompany = logoResource.getInputStream();
+        InputStream logoStream = this.getClass().getResourceAsStream("/reports/images/logoCompany.png");
 
         List<OrderDishItemEntity> orderDishItems = orderDishItemRepository.findByOrderDish(orderDish);
 
@@ -44,7 +40,7 @@ public class InvoiceReportUtility {
 
         // Generate report
         Map<String, Object> parameters = new HashMap<>();
-        parameters.put("logoCompany", logoCompany);
+        parameters.put("logoCompany", logoStream);
         parameters.put("firstName", user.getFirstName());
         parameters.put("lastName", user.getLastName());
         parameters.put("dni", user.getDni() != null ? user.getDni() : "No registered");
@@ -56,13 +52,12 @@ public class InvoiceReportUtility {
         parameters.put("totalPayment", total);
         parameters.put("ds", new JRBeanArrayDataSource(
                 orderDishItems.stream().map(orderDishItem -> new ReportEntity(
-                                orderDishItem.getId(),
-                                orderDishItem.getDish().getName(),
-                                orderDishItem.getQuantity(),
-                                orderDishItem.getDish().getPrice(),
-                                Math.round(orderDishItem.getQuantity() * orderDishItem.getDish().getPrice() * 100.0) / 100.0
-                        )
-                ).toArray()
+                        orderDishItem.getId(),
+                        orderDishItem.getDish().getName(),
+                        orderDishItem.getQuantity(),
+                        orderDishItem.getDish().getPrice(),
+                        Math.round(orderDishItem.getQuantity() * orderDishItem.getDish().getPrice() * 100.0) / 100.0
+                )).toArray()
         ));
 
         return JasperFillManager.fillReport(jasperReport, parameters, new JREmptyDataSource());
@@ -77,9 +72,6 @@ public class InvoiceReportUtility {
         private int quantity;
         private Double price;
         private Double total;
-
     }
-
-
 
 }
