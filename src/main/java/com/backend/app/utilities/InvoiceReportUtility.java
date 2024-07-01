@@ -7,12 +7,11 @@ import lombok.Data;
 import net.sf.jasperreports.engine.*;
 import net.sf.jasperreports.engine.data.JRBeanArrayDataSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
-import org.springframework.util.ResourceUtils;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
+import java.io.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -23,18 +22,21 @@ public class InvoiceReportUtility {
     @Autowired
     private OrderDishItemRepository orderDishItemRepository;
 
+    @Autowired
+    private ResourceLoader resourceLoader;
+
     public JasperPrint generateReport(
             UserEntity user,
             OrderDishEntity orderDish,
             PaymentEntity payment
-    ) throws FileNotFoundException, JRException {
+    ) throws IOException, JRException {
 
 
+        Resource resource = resourceLoader.getResource("classpath:reports/invoice.jrxml");
+        final JasperReport jasperReport = JasperCompileManager.compileReport(resource.getInputStream());
 
-        final File file = ResourceUtils.getFile("classpath:reports/UserInvoiceReport.jrxml");
-        final JasperReport jasperReport = JasperCompileManager.compileReport(file.getAbsolutePath());
-
-        final File logoCompany = ResourceUtils.getFile("classpath:reports/images/logoCompany.png");
+        Resource logoResource = resourceLoader.getResource("classpath:reports/images/logoCompany.png");
+        InputStream logoCompany = logoResource.getInputStream();
 
         List<OrderDishItemEntity> orderDishItems = orderDishItemRepository.findByOrderDish(orderDish);
 
@@ -42,7 +44,7 @@ public class InvoiceReportUtility {
 
         // Generate report
         Map<String, Object> parameters = new HashMap<>();
-        parameters.put("logoCompany", new FileInputStream(logoCompany));
+        parameters.put("logoCompany", logoCompany);
         parameters.put("firstName", user.getFirstName());
         parameters.put("lastName", user.getLastName());
         parameters.put("dni", user.getDni() != null ? user.getDni() : "No registered");
@@ -54,12 +56,12 @@ public class InvoiceReportUtility {
         parameters.put("totalPayment", total);
         parameters.put("ds", new JRBeanArrayDataSource(
                 orderDishItems.stream().map(orderDishItem -> new ReportEntity(
-                orderDishItem.getId(),
-                orderDishItem.getDish().getName(),
-                orderDishItem.getQuantity(),
-                orderDishItem.getDish().getPrice(),
-                Math.round(orderDishItem.getQuantity() * orderDishItem.getDish().getPrice() * 100.0) / 100.0
-        )
+                                orderDishItem.getId(),
+                                orderDishItem.getDish().getName(),
+                                orderDishItem.getQuantity(),
+                                orderDishItem.getDish().getPrice(),
+                                Math.round(orderDishItem.getQuantity() * orderDishItem.getDish().getPrice() * 100.0) / 100.0
+                        )
                 ).toArray()
         ));
 
